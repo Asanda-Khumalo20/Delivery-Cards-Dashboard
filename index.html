@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Sasol Delivery Cards Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --blue-dark: #003087;
+    --blue-mid: #0055b3;
+    --blue-light: #ddeeff;
+    --blue-accent: #0077cc;
+    --white: #ffffff;
+    --gray-light: #f4f7fb;
+    --gray-border: #c8d8ea;
+    --gray-text: #5a6a7a;
+    --green: #1a8a4a;
+    --orange: #e07b00;
+    --red: #cc2200;
+    --shadow: 0 2px 12px rgba(0,48,135,0.10);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--gray-light); color: #1a2a3a; min-height: 100vh; }
+
+  /* HEADER */
+  header {
+    background: linear-gradient(135deg, var(--blue-dark) 0%, var(--blue-mid) 100%);
+    color: white; padding: 0 32px;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 72px; box-shadow: 0 3px 16px rgba(0,48,135,0.25);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header-left { display: flex; align-items: center; gap: 18px; }
+  .logo-box {
+    background: white; border-radius: 8px;
+    width: 56px; height: 40px; display: flex; align-items: center; justify-content: center;
+    font-weight: 900; font-size: 15px; color: var(--blue-dark); letter-spacing: -0.5px;
+    flex-shrink: 0;
+  }
+  .logo-box span { color: var(--orange); }
+  .header-title { font-size: 20px; font-weight: 700; letter-spacing: 0.2px; }
+  .header-subtitle { font-size: 12px; opacity: 0.75; margin-top: 1px; }
+  .header-right { font-size: 12px; text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .live-clock { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; opacity: 1; font-variant-numeric: tabular-nums; }
+  .live-date { font-size: 12px; opacity: 0.80; }
+  .header-user { font-size: 11px; opacity: 0.65; }
+
+  /* MAIN LAYOUT */
+  main { max-width: 1400px; margin: 0 auto; padding: 28px 24px 48px; }
+
+  /* UPLOAD ZONE */
+  .upload-section {
+    background: white; border: 2px dashed var(--blue-mid); border-radius: 14px;
+    padding: 28px 24px; margin-bottom: 24px; text-align: center;
+    box-shadow: var(--shadow); transition: border-color 0.2s;
+  }
+  .upload-section:hover { border-color: var(--blue-dark); }
+  .upload-section h3 { color: var(--blue-dark); font-size: 16px; margin-bottom: 6px; }
+  .upload-section p { color: var(--gray-text); font-size: 13px; margin-bottom: 16px; }
+  .upload-row { display: flex; gap: 12px; align-items: center; justify-content: center; flex-wrap: wrap; }
+  .upload-btn {
+    background: var(--blue-dark); color: white; border: none; border-radius: 8px;
+    padding: 10px 22px; font-size: 14px; font-weight: 600; cursor: pointer;
+    display: flex; align-items: center; gap: 8px; transition: background 0.2s;
+  }
+  .upload-btn:hover { background: var(--blue-mid); }
+  .clear-btn {
+    background: transparent; color: var(--red); border: 1.5px solid var(--red);
+    border-radius: 8px; padding: 9px 18px; font-size: 13px; cursor: pointer; transition: all 0.2s;
+  }
+  .clear-btn:hover { background: #fff0ee; }
+  #fileInput { display: none; }
+  #loadStatus { font-size: 13px; color: var(--gray-text); margin-top: 10px; min-height: 20px; }
+
+  /* KPI CARDS */
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px,1fr)); gap: 16px; margin-bottom: 24px; }
+  .kpi-card {
+    background: white; border-radius: 12px; padding: 20px 18px;
+    box-shadow: var(--shadow); border-top: 4px solid var(--blue-dark);
+    transition: transform 0.15s;
+  }
+  .kpi-card:hover { transform: translateY(-2px); }
+  .kpi-card.green { border-top-color: var(--green); }
+  .kpi-card.orange { border-top-color: var(--orange); }
+  .kpi-card.accent { border-top-color: var(--blue-accent); }
+  .kpi-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--gray-text); margin-bottom: 6px; font-weight: 600; }
+  .kpi-value { font-size: 32px; font-weight: 800; color: var(--blue-dark); line-height: 1; }
+  .kpi-card.green .kpi-value { color: var(--green); }
+  .kpi-card.orange .kpi-value { color: var(--orange); }
+  .kpi-card.accent .kpi-value { color: var(--blue-accent); }
+  .kpi-sub { font-size: 12px; color: var(--gray-text); margin-top: 4px; }
+
+  /* FILTERS */
+  .filter-bar {
+    background: white; border-radius: 12px; padding: 18px 20px;
+    box-shadow: var(--shadow); margin-bottom: 24px;
+    display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end;
+  }
+  .filter-bar label { font-size: 12px; font-weight: 600; color: var(--blue-dark); display: block; margin-bottom: 4px; }
+  .filter-bar select, .filter-bar input[type=text] {
+    border: 1.5px solid var(--gray-border); border-radius: 7px; padding: 8px 12px;
+    font-size: 13px; color: #1a2a3a; background: white; outline: none;
+    transition: border-color 0.2s; min-width: 160px;
+  }
+  .filter-bar select:focus, .filter-bar input[type=text]:focus { border-color: var(--blue-mid); }
+  .filter-bar .filter-btn {
+    background: var(--blue-dark); color: white; border: none; border-radius: 7px;
+    padding: 8px 18px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.2s;
+  }
+  .filter-bar .filter-btn:hover { background: var(--blue-mid); }
+  .filter-bar .reset-btn {
+    background: transparent; color: var(--gray-text); border: 1.5px solid var(--gray-border);
+    border-radius: 7px; padding: 8px 14px; font-size: 13px; cursor: pointer; transition: all 0.2s;
+  }
+  .filter-bar .reset-btn:hover { border-color: var(--blue-mid); color: var(--blue-mid); }
+
+  /* CHARTS ROW */
+  .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+  @media(max-width:800px){ .charts-row { grid-template-columns: 1fr; } }
+  .chart-card {
+    background: white; border-radius: 12px; padding: 20px;
+    box-shadow: var(--shadow);
+  }
+  .chart-card h3 { font-size: 14px; font-weight: 700; color: var(--blue-dark); margin-bottom: 14px; }
+  .chart-wrap { position: relative; height: 220px; }
+
+  /* TABLE */
+  .table-card { background: white; border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; }
+  .table-card-header {
+    background: var(--blue-dark); color: white; padding: 14px 20px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .table-card-header h3 { font-size: 15px; font-weight: 700; }
+  .record-count { font-size: 12px; opacity: 0.8; }
+  .table-wrap { overflow-x: auto; max-height: 460px; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead { position: sticky; top: 0; z-index: 5; }
+  thead th {
+    background: var(--blue-light); color: var(--blue-dark); font-weight: 700;
+    padding: 10px 14px; text-align: left; border-bottom: 2px solid var(--gray-border);
+    white-space: nowrap; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  tbody tr { border-bottom: 1px solid #edf2f8; transition: background 0.1s; }
+  tbody tr:hover { background: #f0f5ff; }
+  tbody td { padding: 10px 14px; vertical-align: middle; }
+  .month-badge {
+    display: inline-block; padding: 3px 10px; border-radius: 20px;
+    background: var(--blue-light); color: var(--blue-dark); font-size: 11px; font-weight: 600;
+  }
+  .status-badge {
+    display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+  }
+  .status-delivered { background: #e4f7ed; color: var(--green); }
+  .status-eta { background: #fff4e0; color: var(--orange); }
+  .status-other { background: #f0f4fb; color: var(--gray-text); }
+  .qty-pill { font-weight: 700; color: var(--blue-dark); }
+  .empty-state { text-align: center; padding: 48px 20px; color: var(--gray-text); }
+  .empty-state .icon { font-size: 40px; margin-bottom: 10px; }
+  .empty-state p { font-size: 14px; }
+
+  /* MONTH NAV */
+  .month-nav { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+  .month-nav span { font-size: 12px; font-weight: 700; color: var(--blue-dark); margin-right: 4px; }
+  .month-pill {
+    padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer;
+    border: 1.5px solid var(--gray-border); background: white; color: var(--gray-text); transition: all 0.15s;
+  }
+  .month-pill.active { background: var(--blue-dark); color: white; border-color: var(--blue-dark); }
+  .month-pill:hover:not(.active) { border-color: var(--blue-mid); color: var(--blue-mid); }
+
+  footer { text-align: center; margin-top: 32px; font-size: 12px; color: var(--gray-text); padding-bottom: 16px; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #f0f4fb; }
+  ::-webkit-scrollbar-thumb { background: var(--blue-mid); border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="logo-box">SA<span>SO</span>L</div>
+    <div>
+      <div class="header-title">Delivery Cards Dashboard</div>
+      <div class="header-subtitle">Sasol Rewards Programme — Jan to Dec 2026</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="live-clock" id="liveClock">00:00:00</div>
+    <div class="live-date" id="liveDate">—</div>
+    <div class="header-user" id="lastUpdated">Last updated: —</div>
+  </div>
+</header>
+
+<main>
+
+  <!-- UPLOAD -->
+  <div class="upload-section">
+    <h3>📂 Load or Update Excel Data</h3>
+    <p>Upload your monthly Delivery Cards spreadsheet (.xlsx). All sheets are read automatically and stored in your browser.</p>
+    <div class="upload-row">
+      <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+        ⬆ Upload Excel File
+      </button>
+      <button class="clear-btn" onclick="clearStorage()">🗑 Clear Saved Data</button>
+    </div>
+    <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleFile(event)"/>
+    <div id="loadStatus"></div>
+  </div>
+
+  <!-- KPI CARDS -->
+  <div class="kpi-row" id="kpiRow">
+    <div class="kpi-card"><div class="kpi-label">Total Cases</div><div class="kpi-value" id="kpiTotal">—</div><div class="kpi-sub">All months loaded</div></div>
+    <div class="kpi-card green"><div class="kpi-label">Delivered</div><div class="kpi-value" id="kpiDelivered">—</div><div class="kpi-sub">Confirmed deliveries</div></div>
+    <div class="kpi-card orange"><div class="kpi-label">ETA / Pending</div><div class="kpi-value" id="kpiETA">—</div><div class="kpi-sub">Awaiting delivery</div></div>
+    <div class="kpi-card accent"><div class="kpi-label">Total Cards</div><div class="kpi-value" id="kpiQty">—</div><div class="kpi-sub">Total quantity dispatched</div></div>
+    <div class="kpi-card"><div class="kpi-label">Active Months</div><div class="kpi-value" id="kpiMonths">—</div><div class="kpi-sub">Sheets loaded</div></div>
+    <div class="kpi-card"><div class="kpi-label">Unique Sites</div><div class="kpi-value" id="kpiSites">—</div><div class="kpi-sub">Stations served</div></div>
+  </div>
+
+  <!-- MONTH PILLS -->
+  <div class="month-nav">
+    <span>Filter by Month:</span>
+    <div class="month-pill active" data-month="ALL" onclick="setMonthFilter('ALL',this)">All Months</div>
+  </div>
+
+  <!-- FILTER BAR -->
+  <div class="filter-bar">
+    <div>
+      <label>Search Site / Case</label>
+      <input type="text" id="searchInput" placeholder="e.g. Sasol Midrand or CS01…" oninput="applyFilters()"/>
+    </div>
+    <div>
+      <label>Site Name</label>
+      <select id="siteFilter" onchange="applyFilters()">
+        <option value="ALL">All Sites</option>
+      </select>
+    </div>
+    <div>
+      <label>Status</label>
+      <select id="statusFilter" onchange="applyFilters()">
+        <option value="ALL">All Statuses</option>
+        <option value="delivered">Delivered</option>
+        <option value="eta">ETA / Pending</option>
+      </select>
+    </div>
+    <div>
+      <label>Quantity</label>
+      <select id="qtyFilter" onchange="applyFilters()">
+        <option value="ALL">Any Quantity</option>
+        <option value="250">250</option>
+        <option value="500">500</option>
+      </select>
+    </div>
+    <button class="filter-btn" onclick="applyFilters()">Apply</button>
+    <button class="reset-btn" onclick="resetFilters()">Reset</button>
+  </div>
+
+  <!-- CHARTS -->
+  <div class="charts-row">
+    <div class="chart-card">
+      <h3>📦 Cards Dispatched per Month</h3>
+      <div class="chart-wrap"><canvas id="barChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>✅ Delivery Status Breakdown</h3>
+      <div class="chart-wrap"><canvas id="doughnutChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="table-card">
+    <div class="table-card-header">
+      <h3>📋 Delivery Case Records</h3>
+      <span class="record-count" id="recordCount">Loading…</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Month</th>
+            <th>Case Number</th>
+            <th>Site Name</th>
+            <th>Qty</th>
+            <th>Batch Series</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <tr><td colspan="6"><div class="empty-state"><div class="icon">📂</div><p>Upload an Excel file or load from storage to see records.</p></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  Sasol Rewards Programme &bull; Delivery Cards Dashboard &bull; Data persisted in browser storage
+</footer>
+
+<script>
+// ===================== DATA STATE =====================
+let allData = {}; // { "Jan 2026": [...], ... }
+let activeMonth = 'ALL';
+let barChartInst = null;
+let doughnutChartInst = null;
+
+const STORAGE_KEY = 'sasolDeliveryData_v2';
+const STORAGE_META = 'sasolDeliveryMeta_v2';
+
+// ===================== STORAGE =====================
+function saveToStorage() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(allData));
+    localStorage.setItem(STORAGE_META, JSON.stringify({ updated: new Date().toLocaleString('en-ZA') }));
+  } catch(e) { console.warn('Storage save error', e); }
+}
+
+function loadFromStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const meta = localStorage.getItem(STORAGE_META);
+    if (raw) {
+      allData = JSON.parse(raw);
+      if (meta) {
+        const m = JSON.parse(meta);
+        document.getElementById('lastUpdated').textContent = 'Last updated: ' + (m.updated || '—');
+      }
+      document.getElementById('loadStatus').textContent = '✅ Loaded saved data from browser storage.';
+      render();
+    }
+  } catch(e) { console.warn('Storage load error', e); }
+}
+
+function clearStorage() {
+  if (!confirm('Clear all saved data?')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(STORAGE_META);
+  allData = {};
+  document.getElementById('loadStatus').textContent = '🗑 Data cleared.';
+  document.getElementById('lastUpdated').textContent = 'Last updated: —';
+  render();
+}
+
+// ===================== EXCEL PARSING =====================
+function handleFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  document.getElementById('loadStatus').textContent = '⏳ Reading file…';
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      // Merge new sheets into existing data (allows adding more months)
+      wb.SheetNames.forEach(shName => {
+        const ws = wb.Sheets[shName];
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+        const cases = parseSheetRows(rows, shName);
+        if (cases.length > 0) {
+          allData[shName] = cases;
+        }
+      });
+      saveToStorage();
+      const now = new Date().toLocaleString('en-ZA');
+      document.getElementById('lastUpdated').textContent = 'Last updated: ' + now;
+      document.getElementById('loadStatus').textContent = `✅ Loaded ${wb.SheetNames.length} sheet(s) from "${file.name}". Data saved to browser.`;
+      render();
+    } catch(err) {
+      document.getElementById('loadStatus').textContent = '❌ Error reading file: ' + err.message;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+  event.target.value = '';
+}
+
+function parseSheetRows(rows, shName) {
+  const cases = [];
+  rows.forEach(row => {
+    if (!row || !row[0]) return;
+    const caseNo = String(row[0]).trim();
+    if (!caseNo.toUpperCase().startsWith('CS')) return;
+    cases.push({
+      month: shName,
+      case: caseNo,
+      site: row[1] ? String(row[1]).trim().replace(/^\t+/, '') : '',
+      quantity: row[3] ? Number(row[3]) : 0,
+      batchSeries: row[6] ? String(row[6]).trim() : '',
+      status: row[8] ? String(row[8]).trim() : '',
+    });
+  });
+  return cases;
+}
+
+// ===================== SORTING MONTHS =====================
+const MONTH_ORDER = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function sortedMonthKeys() {
+  return Object.keys(allData).sort((a, b) => {
+    const ai = MONTH_ORDER.findIndex(m => a.toLowerCase().startsWith(m.toLowerCase()));
+    const bi = MONTH_ORDER.findIndex(m => b.toLowerCase().startsWith(m.toLowerCase()));
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
+}
+
+// ===================== FILTERS =====================
+function setMonthFilter(month, el) {
+  activeMonth = month;
+  document.querySelectorAll('.month-pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  applyFilters();
+}
+
+function applyFilters() {
+  const search = document.getElementById('searchInput').value.toLowerCase().trim();
+  const statusF = document.getElementById('statusFilter').value;
+  const qtyF = document.getElementById('qtyFilter').value;
+  const siteF = document.getElementById('siteFilter').value;
+
+  let rows = getAllRows();
+
+  if (activeMonth !== 'ALL') rows = rows.filter(r => r.month === activeMonth);
+  if (search) rows = rows.filter(r =>
+    r.site.toLowerCase().includes(search) || r.case.toLowerCase().includes(search)
+  );
+  if (siteF !== 'ALL') rows = rows.filter(r => r.site === siteF);
+  if (statusF === 'delivered') rows = rows.filter(r => isDelivered(r.status));
+  if (statusF === 'eta') rows = rows.filter(r => !isDelivered(r.status));
+  if (qtyF !== 'ALL') rows = rows.filter(r => r.quantity === Number(qtyF));
+
+  renderTable(rows);
+  updateKPIs(rows);
+  document.getElementById('recordCount').textContent = rows.length + ' records';
+}
+
+function resetFilters() {
+  document.getElementById('searchInput').value = '';
+  document.getElementById('statusFilter').value = 'ALL';
+  document.getElementById('qtyFilter').value = 'ALL';
+  document.getElementById('siteFilter').value = 'ALL';
+  applyFilters();
+}
+
+function renderSiteDropdown() {
+  const sel = document.getElementById('siteFilter');
+  const current = sel.value;
+  const sites = [...new Set(getAllRows().map(r => r.site))].sort();
+  sel.innerHTML = '<option value="ALL">All Sites</option>';
+  sites.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s;
+    opt.textContent = s;
+    sel.appendChild(opt);
+  });
+  if (sites.includes(current)) sel.value = current;
+}
+
+function getAllRows() {
+  const months = sortedMonthKeys();
+  let rows = [];
+  months.forEach(m => { if (allData[m]) rows = rows.concat(allData[m]); });
+  return rows;
+}
+
+function isDelivered(status) {
+  return status.toLowerCase().includes('delivered') || status.toLowerCase().includes('delvered') || status.toLowerCase().includes('delivred');
+}
+
+// ===================== RENDER =====================
+function render() {
+  renderMonthPills();
+  renderSiteDropdown();
+  updateKPIs(undefined); // full count on load; applyFilters will re-calc after
+  renderCharts();
+  applyFilters();
+}
+
+function renderMonthPills() {
+  const nav = document.querySelector('.month-nav');
+  // Clear all except first (ALL)
+  const pills = nav.querySelectorAll('.month-pill');
+  pills.forEach((p, i) => { if (i > 0) p.remove(); });
+
+  const months = sortedMonthKeys();
+  months.forEach(m => {
+    const pill = document.createElement('div');
+    pill.className = 'month-pill';
+    pill.dataset.month = m;
+    pill.textContent = m;
+    pill.onclick = function() { setMonthFilter(m, pill); };
+    nav.appendChild(pill);
+  });
+
+  // Re-activate
+  const allPill = nav.querySelector('[data-month="ALL"]');
+  if (activeMonth === 'ALL') {
+    allPill.classList.add('active');
+  } else {
+    allPill.classList.remove('active');
+    const target = nav.querySelector(`[data-month="${activeMonth}"]`);
+    if (target) target.classList.add('active');
+    else { activeMonth = 'ALL'; allPill.classList.add('active'); }
+  }
+}
+
+// Animated count-up for a single element
+const _animTimers = {};
+function animateTo(id, target, isLocale) {
+  if (_animTimers[id]) cancelAnimationFrame(_animTimers[id]);
+  const el = document.getElementById(id);
+  const start = parseInt(el.textContent.replace(/\D/g,'')) || 0;
+  if (start === target) { el.textContent = isLocale ? target.toLocaleString() : target; return; }
+  const duration = 420;
+  const startTime = performance.now();
+  function step(now) {
+    const p = Math.min((now - startTime) / duration, 1);
+    const ease = 1 - Math.pow(1 - p, 3); // ease-out cubic
+    const cur = Math.round(start + (target - start) * ease);
+    el.textContent = isLocale ? cur.toLocaleString() : cur;
+    if (p < 1) _animTimers[id] = requestAnimationFrame(step);
+  }
+  _animTimers[id] = requestAnimationFrame(step);
+}
+
+function updateKPIs(filteredRows) {
+  const rows = filteredRows !== undefined ? filteredRows : getAllRows();
+  const delivered = rows.filter(r => isDelivered(r.status)).length;
+  const eta = rows.filter(r => !isDelivered(r.status)).length;
+  const totalQty = rows.reduce((s, r) => s + r.quantity, 0);
+  const sites = new Set(rows.map(r => r.site.toLowerCase().replace(/^zzzdel/i,'').trim())).size;
+  const activeMonthsCount = filteredRows !== undefined
+    ? new Set(rows.map(r => r.month)).size
+    : Object.keys(allData).length;
+
+  animateTo('kpiTotal', rows.length, false);
+  animateTo('kpiDelivered', delivered, false);
+  animateTo('kpiETA', eta, false);
+  animateTo('kpiQty', totalQty, true);
+  animateTo('kpiMonths', activeMonthsCount, false);
+  animateTo('kpiSites', sites, false);
+}
+
+function renderTable(rows) {
+  const tbody = document.getElementById('tableBody');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="icon">🔍</div><p>No records match your filters.</p></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(r => {
+    const statusClass = isDelivered(r.status) ? 'status-delivered' : (r.status.toLowerCase().includes('eta') ? 'status-eta' : 'status-other');
+    const statusIcon = isDelivered(r.status) ? '✅' : (r.status.toLowerCase().includes('eta') ? '⏳' : '•');
+    return `<tr>
+      <td><span class="month-badge">${escHtml(r.month)}</span></td>
+      <td style="font-family:monospace;font-size:12px;color:var(--blue-dark)">${escHtml(r.case)}</td>
+      <td>${escHtml(r.site)}</td>
+      <td><span class="qty-pill">${r.quantity}</span></td>
+      <td style="font-size:11px;color:var(--gray-text);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(r.batchSeries)}</td>
+      <td><span class="status-badge ${statusClass}">${statusIcon} ${escHtml(r.status)}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderCharts() {
+  // BAR CHART - Cards per month
+  const months = sortedMonthKeys();
+  const barLabels = months.map(m => m.replace(' 2026','').trim());
+  const barData = months.map(m => (allData[m] || []).reduce((s,r) => s + r.quantity, 0));
+
+  if (barChartInst) barChartInst.destroy();
+  const barCtx = document.getElementById('barChart').getContext('2d');
+  barChartInst = new Chart(barCtx, {
+    type: 'bar',
+    data: {
+      labels: barLabels,
+      datasets: [{
+        label: 'Cards Dispatched',
+        data: barData,
+        backgroundColor: barData.map((_,i) => i % 2 === 0 ? '#003087' : '#0077cc'),
+        borderRadius: 6,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { font: { size: 11 } }, grid: { color: '#edf2f8' } },
+        x: { ticks: { font: { size: 11, weight: '600' } }, grid: { display: false } }
+      }
+    }
+  });
+
+  // DOUGHNUT CHART - Status
+  const allRows = getAllRows();
+  const deliveredCount = allRows.filter(r => isDelivered(r.status)).length;
+  const etaCount = allRows.filter(r => r.status.toLowerCase().includes('eta')).length;
+  const otherCount = allRows.length - deliveredCount - etaCount;
+
+  if (doughnutChartInst) doughnutChartInst.destroy();
+  const dCtx = document.getElementById('doughnutChart').getContext('2d');
+  doughnutChartInst = new Chart(dCtx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Delivered', 'ETA/Pending', 'Other'],
+      datasets: [{
+        data: [deliveredCount, etaCount, otherCount],
+        backgroundColor: ['#1a8a4a', '#e07b00', '#0077cc'],
+        borderWidth: 0,
+        hoverOffset: 6,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '65%',
+      plugins: {
+        legend: { position: 'right', labels: { font: { size: 12 }, padding: 12 } }
+      }
+    }
+  });
+}
+
+// ===================== INIT =====================
+// Load built-in data
+const BUILTIN_DATA = {"Jan 2026":[{"month":"Jan 2026","case":"CS0114051","site":"Sasol Junxion","quantity":500,"batchSeries":"Fr 3864251 To Fr 3864500","status":"Delivered 31/01/2026"},{"month":"Jan 2026","case":"CS0113048","site":"Sasol Maathula's","quantity":500,"batchSeries":"Fr 3873251 To Fr 3873500 To Fr 3873001 To Fr 3873250","status":"Delivered 30/01/2026"}],"Feb 2026":[{"month":"Feb 2026","case":"CS0114500","site":"Sasol Delmas","quantity":500,"batchSeries":"Fr 3935001 To Fr 3935250 To Fr 3935251 To Fr 3935500","status":"Delivered 25/02/2026"},{"month":"Feb 2026","case":"CS 0115238","site":"Sasol Chisselhurst","quantity":500,"batchSeries":"Fr 3936501 To Fr3936750 To Fr 3936251 To Fr 3936500","status":"Delivered 28/02/2026"},{"month":"Feb 2026","case":"CS0118658","site":"Sasol Lotus Gardens","quantity":500,"batchSeries":"Fr 3924251 To Fr 3934500 To Fr 3924501 To 3924750","status":"Delivered 23/02/2026"},{"month":"Feb 2026","case":"CS0118044","site":"Power Road Filling Station","quantity":500,"batchSeries":"Fr 3937251 To Fr 3937500 To Fr 3936001 To Fr 393250","status":"Delivered 25/02/2026"},{"month":"Feb 2026","case":"CS0117953","site":"Sasol Merrivale","quantity":500,"batchSeries":"Fr 3951501 To Fr 3951750 To Fr 3951251 To 3951500","status":"Delivered 25/02/2026"},{"month":"Feb 2026","case":"CS0117812","site":"Sasol Nigel Auto City","quantity":500,"batchSeries":"Fr 39500251 To Fr 3950500 To Fr 3952251 To Fr 3952500","status":"Delivered 25/02/2026"},{"month":"Feb 2026","case":"CS0117497","site":"Sasol Reitz Street","quantity":500,"batchSeries":"Fr 3950501 To Fr 3950750 To Fr 3950001 To Fr 3950250","status":"Delivered 25/02/2026"},{"month":"Feb 2026","case":"CS0117423","site":"Sasol Hans Dettman","quantity":500,"batchSeries":"Fr 3951001 To Fr 3951250 To Fr 3950751 To Fr 3951000","status":"Delivered 25/02/2026"},{"month":"Feb 2026","case":"CS0117280","site":"Sasol Riviera Park","quantity":500,"batchSeries":"Fr 3952001 To Fr 3952250 To Fr 3951751 To Fr 3952000","status":"Delivered 25/02/2026"},{"month":"Feb 2026","case":"CS0117136","site":"Sasol Salt Rock","quantity":500,"batchSeries":"Fr 3882251 To Fr 388250500 To Fr 3881751 To Fr 3882000","status":"Delivered 25/02/2026"},{"month":"Feb 2026","case":"CS0116875","site":"Sasol Dalpark","quantity":500,"batchSeries":"Fr 3937001 To Fr 3937250 To Fr 3936751 To Fr 3937000","status":"Delivered 27/02/2026"},{"month":"Feb 2026","case":"CS0116821","site":"Sasol Thavhani Mall","quantity":500,"batchSeries":"Fr 3918501 To Fr 3918750 -Fr 3918251 To Fr 3918500","status":"Delivered 27/02/2026"},{"month":"Feb 2026","case":"CS0116809","site":"Sasol Atlas Road","quantity":500,"batchSeries":"Fr 3923751 To Fr 3924000 To Fr 3924001 To 3924250","status":"Delivered 25/02/2026"},{"month":"Feb 2026","case":"CS0116728","site":"Sasol Braamfischer","quantity":500,"batchSeries":"Fr 3924751 To Fr 3925000 To Fr 3823501 To Fr 3923750","status":"Delivered 25/02/2026"},{"month":"Feb 2026","case":"CS0115873","site":"Sasol Rex Middelburg","quantity":500,"batchSeries":"Fr 3917751 To Fr 3918000 - Fr 3918001 To Fr 3918250","status":"Delivered 25/02/2026"},{"month":"Feb 2026","case":"CS0115925","site":"Sasol Agatha","quantity":500,"batchSeries":"Fr 3897001 To Fr 3897250 - Fr 3897251 To Fr 3897500","status":"Delivered 25/02/2026"},{"month":"Feb 2026","case":"CS0115997","site":"Sasol NMR","quantity":500,"batchSeries":"Fr 3896751 To Fr 3896750  - To Fr 3896751 To Fr 3897000","status":"ETA 02/03/2026"},{"month":"Feb 2026","case":"CS0116026","site":"Sasol F And S Filling Station - Fed","quantity":500,"batchSeries":"Fr 3896251 To Fr 3895250 To Fr 3896251 To Fr 3896500","status":"Delivered 27/02/2026"},{"month":"Feb 2026","case":"CS0111198","site":"Sasol Sunpark","quantity":500,"batchSeries":"Fr 3895501 To Fr 3895150 To Fr 3895251 To Fr 3895500","status":"Delivered 25/02/2026"},{"month":"Feb 2026","case":"CS0116155","site":"ZZZDELSasol Van Buuren","quantity":500,"batchSeries":"Fr 3922751 To Fr 392300 To  Fr 3922501 To 3922750","status":"Delivered 25/02/2026"},{"month":"Feb 2026","case":"CS0115203","site":"Sasol Newmarket","quantity":500,"batchSeries":"Fr 3881251 To Fr 3881500 To Fr 3881501 To Fr 3881750","status":"Delivered 25/02/2026"},{"month":"Feb 2026","case":"CS0115892","site":"Sasol Leyds","quantity":500,"batchSeries":"Fr 3896001 To Fr 3896250 To Fr 3895715 To Fr 3896000","status":"Delivered 25/02/2026"}],"March ":[{"month":"March ","case":"CS0120416","site":"Sasol Axis Park","quantity":500,"batchSeries":"Fr 3921251 To Fr 3921500 To Fr 3921001 - Fr 3921250","status":"Delivred 20/03/2026"},{"month":"March ","case":"CS0120411","site":"Sasol Sutherland","quantity":500,"batchSeries":"Fr 3920751 - Fr 3921000 To Fr 3920501 Fr 3920750","status":"Delivred 20/03/2026"},{"month":"March ","case":"CS0121439","site":"Sasol Diepsloot","quantity":500,"batchSeries":"Fr 3958251 - To 3058500 Fr3958001 - To 3958250","status":"Delivered 18/03/2026"},{"month":"March ","case":"CS0120590","site":"Sasol Madiba Park","quantity":500,"batchSeries":"Fr 3959501 - Fr 3959750 to Fr 3958501 - Fr 3958750","status":"Delivered 19/03/2026"},{"month":"March ","case":"CS0120584","site":"Sasol Gateway","quantity":500,"batchSeries":"Fr 3922251 - Fr 3922500 o Fr 3922001 - Fr 3922250","status":"Delivered 19/03/2026"},{"month":"March ","case":"CS0120580","site":"Sasol Doornkop","quantity":500,"batchSeries":"Fr 3913751 - Fr 3914000 To Fr 3914001 - Fr 3914250","status":"Delivered 19/03/2026"},{"month":"March ","case":"CS0120561","site":"Sasol Nkululeko","quantity":500,"batchSeries":"Fr 3957751 To Fr 3958000 - Fr 3957501 - Fr 3957750","status":"Delivered 19/03/2026"},{"month":"March ","case":"CS0120560","site":"Sasol Marshall","quantity":500,"batchSeries":"Fr 3959751- Fr 3960000 To Fr 3959251 - Fr 3959500","status":"Delivered 19/03/2026"},{"month":"March ","case":"CS0120539","site":"Sasol Midrand","quantity":500,"batchSeries":"Fr 3958751 - To 3959000  Fr3959001 - To 3059250","status":"Delivered 19/03/2026"},{"month":"March ","case":"CS0120412","site":"Sasol Erica Road","quantity":500,"batchSeries":"Fr 3912751 To Fr 3913000 - Fr 3912501 To Fr 3912750","status":"Delivered 23/03/2026"},{"month":"March ","case":"CS0120396","site":"Sasol Hill Street","quantity":500,"batchSeries":"Fr 3921751 - To 3922000   Fr 3921501 - To 3921750","status":"Delivered 20/03/2026"},{"month":"March ","case":"CS0120393","site":"Sasol On Randles","quantity":500,"batchSeries":"Fr 3919501 - Fr 3919750 - Fr 3919251 To Fr 39168500","status":"Delivered 19/03/2026"},{"month":"March ","case":"CS0120324","site":"Sasol Main Reef","quantity":500,"batchSeries":"fr3920251 - To 3920500 Fr 3920001 - To 3920250","status":"Delivered 19/03/2026"},{"month":"March ","case":"CS0119625","site":"Sasol Montague Gardens","quantity":500,"batchSeries":"Fr 39132510 To Fr 3913500 - Fr 3913001 To Fr 3913250","status":"Delivered 20/03/2026"},{"month":"March ","case":"CS0119646","site":"Sasol Brits 1","quantity":500,"batchSeries":"Fr 3941501 - Fr 3914750 To Fr 3914251  - Fr 3914500","status":"Delivered 22/03/2026"},{"month":"March ","case":"CS0119748","site":"Sasol Ifafi","quantity":500,"batchSeries":"Fr 3913501 - Fr 3912370 To Fr 3914751 - Fr 3915000","status":"Delvered 19/03/2026"}],"April 2026":[{"month":"April 2026","case":"CS0121003","site":"Sasol Hindle Road","quantity":250,"batchSeries":"Fr 3866251 - Fr 3866500","status":"Delivered 08-04-2026"},{"month":"April 2026","case":"CS0122682","site":"Sasol Jimbos","quantity":500,"batchSeries":"Fr 3865751 - Fr 3866000","status":"Delivered 08-04-2026"},{"month":"April 2026","case":"CS0123034","site":"Sasol Duduza","quantity":250,"batchSeries":"Fr 3866501 - Fr 3866750","status":"Delivered 08-04-2026"},{"month":"April 2026","case":"CS0124212","site":"Sasol Bosworth","quantity":250,"batchSeries":"Fr 3866751 - Fr 3867000","status":"Delivered 09-04-2026"},{"month":"April 2026","case":"CS0115029","site":"Sasol Swartgoud","quantity":500,"batchSeries":"Fr 3867251 - Fr 3867500","status":"Delivered 17-04-2026"},{"month":"April 2026","case":"CS0121439","site":"Sasol Diepsloot","quantity":250,"batchSeries":"Fr 3883001 - Fr 3883250","status":"Delivered 23-04-2026"},{"month":"April 2026","case":"CS0129174","site":"Sasol Midrand","quantity":250,"batchSeries":"Fr 3865501 - Fr 3865750","status":"Delivered 23-04-2026"},{"month":"April 2026","case":"CS0120396","site":"Sasol Hill Street","quantity":250,"batchSeries":"Fr 3882751 - Fr 3883000","status":"Delivered 24-04-2026"},{"month":"April 2026","case":"CS0126052","site":"Sasol Newlands","quantity":250,"batchSeries":"Fr 3866001  - Fr 3866250","status":"Delivered 24-04-2026"},{"month":"April 2026","case":"CS0108457","site":"Sasol K8 South","quantity":250,"batchSeries":"Fr 385011- Fr 3865252","status":"Delivered 24--04-2026"},{"month":"April 2026","case":"CS0126633","site":"Sasol Kruisfontein","quantity":250,"batchSeries":"Fr 385001- Fr 3865250","status":"Delivered 24--04-2026"},{"month":"April 2026","case":"CS0127831","site":"Sasol Marlboro Gardens","quantity":250,"batchSeries":"Fr 3865251 - Fr 3865500","status":"Delivered 28-04-2026"},{"month":"April 2026","case":"CS0120416","site":"Sasol Axis Park","quantity":250,"batchSeries":"Fr 3877001 - Fr 3877250","status":"Delivered 30-04-2026"},{"month":"April 2026","case":"CS0129207","site":"Sasol Supernova","quantity":250,"batchSeries":"Fr 3875501 - Fr 3875750","status":"Delivered 30-04-2026"}],"May 2026":[{"month":"May 2026","case":"CS0129089","site":"Sasol Sutherland","quantity":250,"batchSeries":"Fr 3876001 - Fr 3876250","status":"Delivered 01-05-2026"},{"month":"May 2026","case":"CS0120324","site":"Sasol Main Reef","quantity":250,"batchSeries":"Fr3876501 - Fr 3876750","status":"Delivered 01-05-2026"},{"month":"May 2026","case":"CS0102816","site":"Sasol Middelburg","quantity":250,"batchSeries":"Fr 3875751 - Fr 3876000","status":"Delivered 01-05-2026"},{"month":"May 2026","case":"CS0107438","site":"Sasol Merrivale","quantity":250,"batchSeries":"Fr 3876251 - Fr 3876500","status":"Delivered 04-05-2026"},{"month":"May 2026","case":"CS0127834","site":"Sasol Nkuna Kraal","quantity":250,"batchSeries":"Fr 3876751 - Fr 3877000","status":"Delivered 04-05-2026"},{"month":"May 2026","case":"CS0120412","site":"Sasol Erica Road","quantity":250,"batchSeries":"Fr 3877251 - Fr 3877500","status":"Delivered 05-05-2026"},{"month":"May 2026","case":"CS0129918","site":"Sasol Wilropark","quantity":250,"batchSeries":"Fr 3875001 - Fr 3875250","status":"Delivered 04-05-2026"},{"month":"May 2026","case":"CS0123370","site":"Sasol Davest","quantity":250,"batchSeries":"Fr 3875251 - Fr 3875500","status":"Delivered 06-05-2026"},{"month":"May 2026","case":"CS0109316","site":"ZZZDELSasol Tsantsabane","quantity":250,"batchSeries":"Fr 3912001 - Fr 3912250","status":"Delivered 06-05-2026"},{"month":"May 2026","case":"CS0119825","site":"Sasol North Reef","quantity":250,"batchSeries":"Fr 3910751 - Fr 3911000","status":"Delivered 28-05-2026"},{"month":"May 2026","case":"CS0131920","site":"Sasol Vaalpark","quantity":250,"batchSeries":"Fr 3910501 - Fr 3910750","status":"Delivered 25-05-2026"},{"month":"May 2026","case":"CS0132824","site":"Sasol Kimberley","quantity":250,"batchSeries":"Fr 3911501 - Fr 3911750","status":"Delivered 26-05-2026"},{"month":"May 2026","case":"CS0132978","site":"Sasol Maathula's","quantity":250,"batchSeries":"Fr 3911751 - Fr 3912000","status":"Delivered 27-05-2026"},{"month":"May 2026","case":"CS0133011","site":"Sasol Figtree","quantity":250,"batchSeries":"Fr 3912251 - Fr 3912500","status":"Delivered 28-05-2026"},{"month":"May 2026","case":"CS0126633","site":"Sasol Kruisfontein","quantity":250,"batchSeries":"Fr 3911001 - Fr 3911250","status":"Delivered 28-06-2026"}],"June 2026":[{"month":"June 2026","case":"CS0135084","site":"Sasol Oasis","quantity":250,"batchSeries":"Fr 3944001 - Fr 3944250","status":"Delivered 12-06-2026"},{"month":"June 2026","case":"CS0135189","site":"Sasol Umgeni","quantity":250,"batchSeries":"Fr 3942751 -Fr 3943000","status":"Delivered 12-06-2026"},{"month":"June 2026","case":"CS0135361","site":"Sasol Rooihuiskraal","quantity":250,"batchSeries":"Fr3943001 - Fr 3943250","status":"Delivered 10-06-2026"},{"month":"June 2026","case":"CS0134625","site":"Sasol Zebetiela North","quantity":250,"batchSeries":"Fr 3943501 - Fr 3943750","status":"Delivered 09-06-2026"},{"month":"June 2026","case":"CS0120580","site":"Sasol Doornkop","quantity":250,"batchSeries":"Fr3943751 - Fr 3944000","status":"Delivered 09-06-2026"},{"month":"June 2026","case":"CS0135575","site":"Sasol Midrand","quantity":250,"batchSeries":"Fr 3944251 - Fr 3944500","status":"Delivered 09-06-2026"},{"month":"June 2026","case":"CS0135576","site":"Sasol SSS","quantity":250,"batchSeries":"Fr 3943251 - Fr 3943500","status":"Delivered 08-06-2026"},{"month":"June 2026","case":"CS0136224","site":"Sasol Marlboro Gardens","quantity":250,"batchSeries":"Fr 3944751 - Fr 3945000","status":"Delivered 12-06-2026"},{"month":"June 2026","case":"CS0135782","site":"Sasol Roelf En Jacks","quantity":250,"batchSeries":"Fr 3928251 - Fr 3928500","status":"ETA 19-06-2026"},{"month":"June 2026","case":"CS0135793","site":"Sasol Sutherland","quantity":250,"batchSeries":"Fr 3928501 - Fr 3928750","status":"Delivered 16-06-2026"},{"month":"June 2026","case":"CS0135995","site":"Sasol Piet Retief","quantity":250,"batchSeries":"Fr 3944501 - Fr 3944750","status":"Delivered 15-06-2026"},{"month":"June 2026","case":"CS0137844","site":"Sasol Sunpark","quantity":250,"batchSeries":"Fr 3927751 - Fr 3928000","status":"ETA 24-06-2026"}]};
+
+window.addEventListener('DOMContentLoaded', () => {
+  // Live clock
+  function updateClock() {
+    const now = new Date();
+    const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const hh = String(now.getHours()).padStart(2,'0');
+    const mm = String(now.getMinutes()).padStart(2,'0');
+    const ss = String(now.getSeconds()).padStart(2,'0');
+    document.getElementById('liveClock').textContent = `${hh}:${mm}:${ss}`;
+    document.getElementById('liveDate').textContent =
+      `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
+
+  // Try localStorage first; if empty, use built-in data
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    loadFromStorage();
+  } else {
+    allData = BUILTIN_DATA;
+    saveToStorage();
+    const now = new Date().toLocaleString('en-ZA');
+    document.getElementById('lastUpdated').textContent = 'Last updated: ' + now;
+    document.getElementById('loadStatus').textContent = '✅ Pre-loaded with your June 2026 data. Upload a new file to update.';
+    render();
+  }
+});
+</script>
+</body>
+</html>
